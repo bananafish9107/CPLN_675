@@ -1087,6 +1087,23 @@ dat_2027_preds %>%
 ```
 
 
+```{r}
+dat_2027_preds %>%
+  as.data.frame() %>%
+  filter(Prediction == 1) %>%
+  dplyr::select(farm, otherUndeveloped, forest, wetlands, NAME) %>%
+  gather(-NAME, key = "Variable", value = "Value") %>%
+  group_by(NAME, Variable) %>%
+  summarize(total_cells = sum(as.numeric(Value))) %>%
+  mutate(total_area_m = total_cells * res(lc_2019_rs)[1],
+         total_km2 = total_area_m/1000000,
+         total_mi2 = total_km2*0.386102) %>%
+  kable() %>%
+  kable_styling ()
+
+```
+
+
 # 2. Data Wrangling & Feature Engineering
 
 _JE Note: Land cover data link has been updated._
