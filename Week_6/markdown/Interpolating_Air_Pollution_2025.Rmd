@@ -19,6 +19,8 @@ library(knitr)
 
 ***This markdown is based on material created cooperatively with the late Prof. Ken Steif.***
 
+*The course text ["Introduction to Applied Predictive Modeling"](https://mafichman.github.io/applied_predictive_modeling/) contains sample workflows for linear and binomial predictive models and describes key terms and engineering strategies.*
+
 # 1. Introduction
 
 Weather, air pollution and elevation are typically represented as continuous spatial processes. However, they are often derived from discrete sample points like weather stations, air quality sensors and GPS units and *interpolated* into surfaces. This module teaches students how convert discrete samples of data to continuous spatial estimated ‘surfaces’. It also introduces regression-based geospatial predictive modeling.
@@ -251,10 +253,11 @@ scatterplot_data <- training %>%
   st_drop_geometry() %>%
   gather(Variable, Value, -ozoneHigh)
 
-    ggplot(data = scatterplot_data, aes(x = Value, y = ozoneHigh)) +
-      geom_point() +
-      geom_smooth(method = "lm", se=FALSE) +
-      facet_wrap(~Variable, scales="free", ncol=5)
+    ggplot(data = scatterplot_data) +
+      geom_point(aes(x = Value, y = ozoneHigh)) +
+      geom_smooth(aes(x = Value, y = ozoneHigh), method = "lm", se=FALSE) +
+      facet_wrap(~Variable, scales="free", ncol=5)+
+      theme_minimal()
 ```
 ## 5.2 Creating Models
 
@@ -299,10 +302,11 @@ Let's add in our spatial lag.
 
 
 ```{r}
-ggplot(training, aes(Ave_ozoneH, ozoneHigh)) +
- geom_point() +
- geom_smooth(method="lm",se=F) +
- labs(title="Ozone as a function of the spatial lag of ozone")
+ggplot(data= training) +
+ geom_point(aes(x = Ave_ozoneH, y = ozoneHigh)) +
+ geom_smooth(aes(x = Ave_ozoneH, y = ozoneHigh), method="lm",se=F) +
+ labs(title="Ozone as a function of the spatial lag of ozone")+
+  theme_minimal()
 ```
 
 Let’s make a new regression called `reg.lag` that includes spatial lag in the regression.
@@ -341,7 +345,7 @@ training.summary <-
     dplyr::select(c(ozoneHigh, starts_with("reg"))) %>%
     gather(Variable, Value, -ozoneHigh, -geometry) 
 
-training.summary
+glimpse(training.summary)
 ```
 
 Next, create three plots of predictions for observed. 
@@ -349,21 +353,28 @@ Next, create three plots of predictions for observed.
 Which model looks most accurate?
 
 ```{r plot_training, message = FALSE, warning= FALSE}
-ggplot(data = training.summary, aes(y = Value, x =ozoneHigh)) + 
-  geom_point() + geom_smooth(method = "lm", se = FALSE) +
-  facet_wrap(~Variable, scales = "free")
+ggplot(data = training.summary) + 
+  geom_point(aes(y = Value, x =ozoneHigh)) + 
+  geom_smooth(aes(y = Value, x = ozoneHigh), method = "lm", se = FALSE) +
+  facet_wrap(~Variable, scales = "free")+
+  theme_minimal()
 ```
 
 Finally, we calculate the Mean Absolute Error. 
 
-`absError` is the absolute value of the difference between observed ozoneHigh and the predicted. Why do you think we are interested in absolute error rather than raw error?
+`absError` is the absolute value of the difference between observed ozoneHigh and the predicted. 
 
 Notice that `group_by` allows us to calculate the average error by each regression type. 
 
+*Why do you think we are interested in absolute error rather than raw error?*
+
 ***Which model is the strongest?***
 
+*Can you calculate `training.summary` and create MAPE in the mutate statement?*
+
 ```{r}
-st_drop_geometry(training.summary) %>%
+training.summary %>%
+  as.data.frame() %>%
   mutate(absError = abs(ozoneHigh - Value)) %>%
   group_by(Variable) %>%
   summarize(MeanAbsoluteError = mean(absError))
@@ -374,10 +385,15 @@ Finally, let’s predict for the entire dataset.
 
 This set of predictions is our interpolated output.
 
+We use the `predict` function to predict values for `epa2` using our model `reg.lag` and the independent variables in the `epa2` data set.
+
 ```{r}
 epa2 <- epa2 %>%
   mutate(reg.lag.pred = predict(reg.lag, epa2))
+```
 
+
+```{r}
 ggplot() +
   geom_sf(data=epa2, aes(fill = reg.lag.pred)) + 
   scale_fill_viridis() +
@@ -388,7 +404,7 @@ ggplot() +
 
 Let’s visualize the prediction with the areas where we have air sensors (ie. training == 1). 
 
-We use the `predict` function to predict values for `epa2` using our model `reg.lag` and the independent variables in the `epa2` data set.
+Notice how we can filter our data set `epa2` inside the ggplot call - this is a nice shortcut to keep us from having to make a whole new data frame.
 
 ```{r}
 
