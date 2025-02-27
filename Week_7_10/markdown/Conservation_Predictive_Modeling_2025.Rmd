@@ -19,11 +19,11 @@ library(knitr)
 
 # 1. Introduction
 
-Recall our site suitability exercise in Week 1 - we used our own spatial decision factors, or "weights" to impose a rule-based system for identifying land areas. We are going to learn an alternative approach, where we use a statistical model to algorithmically determine the weights and subsequent siting.
+Recall our site suitability exercise in Week 1 - we used our own spatial decision factors, or "weights" to impose a rule-based system for identifying land areas. We are going to learn an alternative approach, where we use a statistical model to algorithmically determine the weights and use these to predict suitability.
 
-If you have never used logistic regression, or "logit" modeling, make sure you read the class tutorial *Introduction to Applied Predictive Modeling* to see the basic workflow for training and testing models.
+If you have never used logistic regression, or "logit" modeling, make sure you read the class text [*Introduction to Applied Predictive Modeling*](https://mafichman.github.io/applied_predictive_modeling/) to see the basic workflow for training and testing models.
 
-The use case is as follows - assume you are a program manager at a land conservation non-profit, and you are seeking to use your resources to acquire land to conserve. Given all the land in Pennsylvania, it's hard know where to start, so you need to find a way to identify suitable areas to investigate for acquisition. By using a predictive model, you can identify likely lands and begin to research their ownership, and determine whether they are available.
+The use case is as follows - assume you are a program manager at a land conservation non-profit, and you are seeking to use your resources to acquire land to conserve. Given all the land in Pennsylvania, it's hard know where to start. It is very labor intensive to inquire about properties, so you need to find a way to identify and porioritize suitable areas to investigate for acquisition. By using a predictive model, you can identify likely lands and begin to research their ownership, and determine whether they are available.
 
 This is a relatively simplified exercise - there are some detailed ways to "tune" models to make them more powerful and flexible - to introduce you to logistic regression as a tool for classification. You will be able to use this general workflow in your midterm project, when you will create your own features for a similar model.
 
