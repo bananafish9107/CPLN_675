@@ -1043,7 +1043,9 @@ In this case however, the dependent variable is a binary outcome - either a grid
 
 Here, we `select` our continuous varialbes and our dependent variable, convert our to long form using `gather` created facetted bar plots. Note that `geom_bar` calculates the `mean` has a `fun.y` argument where we can calculate the mean value for these variables inside our plotting function. 
 
-How do you interpret each of these plots? Do you think these are going to be good predictors of `development_change`? Why?
+How do you interpret each of these plots? Try the following framework - "On average, a cell that converted from undeveloped to developed had was __________ compared to a cell that didn't convert."
+
+Do you think these are going to be good predictors of `development_change`? Why?
 
 ```{r, warning = FALSE, message = FALSE}
 dat_2011 %>%
@@ -1054,18 +1056,16 @@ dat_2011 %>%
     facet_wrap(~Variable, scales = "free") +
     scale_fill_manual(values = palette2,
                       labels=c("No Change","New Development"),
-                      name="") +
-    labs(title="New Development as a Function of the Continuous Variables") +
+                      name="Mean Value") +
+    labs(title="New Development as a Function of Continuous Variables") +
     theme_minimal() 
 ```
 STOPPED HERE
 
 
-Next, a table of land cover conversion between 2001 and 2011 is created. The table suggests for instance, that 1% of farmland regionally was converted to development between 2001 and 2010. This indicator should be interpreted in the context of the scale changes we imposed on the data by moving from a 30ft by 30ft raster to a 4000ft by 4000ft fishnet. This is the same reason why the table suggests `developed` area was then “developed”.
-
 ```{r, warning = FALSE, message = FALSE}
 dat_2011 %>%
-  dplyr::select(development_change, developed:otherUndeveloped) %>%
+  dplyr::select(development_change, forest, farm, wetlands, otherUndeveloped) %>%
   gather(key = "Land_Cover_Type", Value, -development_change) %>%
      group_by(development_change, Land_Cover_Type) %>%
      summarize(n = sum(as.numeric(Value))) %>%
@@ -1098,6 +1098,8 @@ Next six separate `glm` models are estimated adding new variables for each.
 
 `Model1` includes only the 2001 land cover types. `Model2` adds the `lagDevelopment`. Models 3, 4 and 5 attempt three different approaches for modeling population change. `Model3` uses population in 2000; `Model4` uses 2000 and 2010 population; and `Model5` uses population change. All are significant so which population feature should be chosen? The answer lies in how the model will be used to forecast. By modeling population change between 2000 and 2010, the model is well specified to forecast 2020 development by having `pop_Change` indicate change between 2010 and 2020. `Model6` includes distance to the highways, and is the final model employed for prediction.
 
+MAKE A NOTE THAT WE INTERACT SOME VARIABLES IN MODEL 6
+
 ```{r, warning = FALSE, message = FALSE}
 Model1 <- glm(development_change ~ wetlands + forest  + farm + 
                 otherUndeveloped, 
@@ -1116,28 +1118,41 @@ Model4 <- glm(development_change ~ wetlands + forest  + farm +
               family="binomial"(link="logit"), data = datTrain) 
 
 Model5 <- glm(development_change ~ wetlands + forest  + farm + 
-                otherUndeveloped + lagDevelopment *distance_highways + NAME, 
+                otherUndeveloped + lagDevelopment + pop + distance_highways + NAME, 
+              family="binomial"(link="logit"), data = datTrain) 
+
+Model6 <- glm(development_change ~ wetlands + forest  + farm + 
+                otherUndeveloped + lagDevelopment  * distance_highways + NAME, 
               family="binomial"(link="logit"), data = datTrain) 
 ```
 
-Print the summary object for your model of choice
+Print the summary objects for your models, and choose one to use as your model for the validation and prediction procedure to follow.
 
 
 ```{r}
 
-summary(Model5)
+summary(Model6)
 
 ```
+You can compare the AIC indicators for the models to get a sense of their general capacity to explain variation in your dependent variable. The lower the AIC, the better the goodness of fit - remember, this is NOT the same as model "quality" when it comes to prediction!
 
-MF NOTE - Get rid of this. Just let the students check each model instead of making a complex function to make this graphic.
+```{r}
+data.frame(
+  Model = c("Model1", "Model2", "Model3", "Model4", "Model5", "Model6"),
+  AIC = c(Model1$aic, Model2$aic, Model3$aic, Model4$aic, Model5$aic, Model6$aic)
+) %>%
+  ggplot()+
+  geom_bar(aes(x = Model, y = AIC), stat = "identity")+
+  theme_minimal()
 
+```
 
 Next, a data frame is created that includes columns for the observed development change, `lc_change`, and one that includes predicted probabilities for `Model6`. This data frame is then used as an input to a density plot visualizing the distribution of predicted probabilities by observed class. Only a small number of predicted probabilities are greater than or equal to 50% `(nrow(filter(testSetProbs, probs >= .50)) / nrow(datTest))`. This makes good sense, given how rare of an event development is in our dataset. Ultimately, in order to judge our model with a confusion matrix, a smaller development classification threshold must be employed.
 
 ```{r, warning = FALSE, message = FALSE}
 testSetProbs <- 
   data.frame(class = datTest$development_change,
-             probs = predict(Model5, datTest, type="response")) 
+             probs = predict(Model6, datTest, type="response")) 
   
 ggplot(testSetProbs, aes(probs)) +
   geom_density(aes(fill=class), alpha=0.5) +
@@ -1171,6 +1186,8 @@ ggplot(testSetProbs, aes(d = as.numeric(class), m = probs)) +
 ### Predicting for the whole set, analyzing error
 
 Use our whole data set, and make predictions at a few threshold options, map the outcomes, summarize by county.
+
+What do you think is better here as a threshold? This is a matter of your expertise? What are the more acceptable classes of error in your opinion?
 
 ```{r, warning = FALSE, message = FALSE}
 dat_2011_preds <-         
@@ -1215,14 +1232,13 @@ dat_2011_preds %>%
 <div class="superbigimage">
 ```{r, warning = FALSE, message= FALSE, fig.height = 6, fig.width= 8}
 ggplot() +
-  geom_point(data= dat_2011_preds %>%
+  geom_sf(data= dat_2011_preds %>%
+            st_centroid() %>%
                dplyr::select(confResult_05, confResult_17, geometry) %>%
                gather(key = "Variable", value = "Value", -geometry), 
-             aes(x=xyC(dat_2011_preds)[,1], 
-                 y=xyC(dat_2011_preds)[,2], 
-                 colour=Value)) +
+             aes(colour=Value)) +
   facet_wrap(~Variable) +
-  scale_colour_manual(values = palette2, labels=c("No Change","New Development"),
+  scale_colour_manual(values = c("red", "yellow", "blue", "grey"), labels=c("False Negative","False Positive", "True Negative", "True Positive"),
                       name="") +
   labs(title="Development Predictions - By Threshold") + 
   theme_void()
