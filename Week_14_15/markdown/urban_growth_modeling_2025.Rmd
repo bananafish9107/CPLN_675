@@ -29,29 +29,16 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 MF notes - 2025 edits
 
-NEXT STEPS - RESAMPLE TO LARGER CELLS, REDO WORKFLOW TO CREATE 2011 and 2019 SETS SEPARATELY SO VARIABLES HAVE SAME NAME FOR RUNNING IN THE MODEL.
-
 Take the functions and stash them in a separate .R file - make a little appendix describing the function arguments
 
-Make the workflow correspond to a present-day time period that is the same as the assignment - 2009-2019 perhaps. DONE
-
-Set up an introduction that describes the workflow in bullet points, lays out the alternative workflow in ArcGIS. DONE
-
-Get rid of the plotTheme and mapTheme DONE
-
-Remove spatial CV - too advanced for 675
-
-Change to workflow so that it's bringing in lc data from both years, identifying change etc., This is the cleaning routine students will be doing. DONE
-
-Downsample the rasters a bit more, the whole thing is running pretty slowly. DONE
-
-Provide additional workflow overview - broad outline of what the steps are.... DONE
 
 Fix the new workflow to create variables without the _2011 suffix - and instead collect the 2019 and 2011 data side by side, feeding the 2019 data to the model at the very end to make the 2027 projection.
 
-_There is a very cool lineage for this class module. It descends from the California Urban Futures Model, developed by Prof. Emeritus John Landis. Prof Landis taught this methodology in this class when I took it. Years later, I team-taught this class with the late Prof. Ken Steif, who was another student of John's. We adapted the approach to be done in R, and use more explicitly spatial features. Ken wrote about it in an unpublished chapter from his book "Public Policy Analytics". I include some of Ken's unpublished text here in its original form._
+_There is a very cool lineage for this class module. It is inspired by the California Urban Futures Model, developed by Prof. Emeritus John Landis as what he called a "reduced form" model. Prof Landis taught his version of this methodology when I was his student. Years later, I team-taught this class with the late Prof. Ken Steif, who was another student of John's. We adapted the approach to be done in R, and use more explicitly spatial features. Ken wrote about it in an unpublished chapter from his book "Public Policy Analytics". I include some of Ken's unpublished writing here in its original form._
 
-_This workflow will form the backbone of your fifth and final assignment for CPLN 6750. You will build a growth model based on a logistic regression that predicts the probability of land cover change at a raster cell level over a specified interval as a function of a) Existing land cover, b) The location of infrastructure and c) Demographic and economic spatial variables._
+_This workflow will form the backbone of your fifth and final assignment for CPLN 6750. You will build a growth model based on a logistic regression that predicts the probability of land cover change across space over a specified time interval. Land cover change is hypothesized here to be a function of a) Existing land cover, b) The location of infrastructure and c) Demographic and economic spatial variables._
+
+_For the first time in this class, you will have the option of conducting this workflow entirely in R._
 
 _Thanks very much to Jenna Epstein for editing this material._
 
@@ -1076,12 +1063,12 @@ dat_2011 %>%
   kable() %>% kable_styling(full_width = F)
 ```
 
-### Train/Test models and validate.
+# 12. Modeling
 
 
-## 4.2. Modeling
+## 12.1. Splitting our data
 
-First, `dat` is split into training and test sets. Note how imbalanced the panel is with `table(datTrain$lc_change1)`.
+First, `dat` is split into 50% training and test sets. Since we have relatively few 1's in our data, a generous train/test split helps keeps a fair number of 1's in the training set. Note how we specify `dat_2011$otherUndeveloped` as needing to be sorted into our training set - there are relatively few of these, and we want to make sure our model has "seen" all levels of our fixed effects in training.
 
 ```{r, warning = FALSE, message = FALSE}
 set.seed(3456)
@@ -1094,11 +1081,23 @@ datTest  <- dat_2011[-trainIndex,]
 
 ```
 
-Next six separate `glm` models are estimated adding new variables for each.
+## 12.2. Specifying models
 
-`Model1` includes only the 2001 land cover types. `Model2` adds the `lagDevelopment`. Models 3, 4 and 5 attempt three different approaches for modeling population change. `Model3` uses population in 2000; `Model4` uses 2000 and 2010 population; and `Model5` uses population change. All are significant so which population feature should be chosen? The answer lies in how the model will be used to forecast. By modeling population change between 2000 and 2010, the model is well specified to forecast 2020 development by having `pop_Change` indicate change between 2010 and 2020. `Model6` includes distance to the highways, and is the final model employed for prediction.
+We estimate six separate `glm` models - adding new variables for each.
 
-MAKE A NOTE THAT WE INTERACT SOME VARIABLES IN MODEL 6
+- `Model1` includes only previous land cover types. 
+
+- `Model2` adds the `lagDevelopment`. 
+
+- `Model3` adds population
+
+- `Model4` adds a fixed effect for county (`NAME`)
+
+- `Model5` adds the distance to highway.
+
+- `Model6` is a modification of `Model5` which *interacts* distance to highway and development lag. The hypothesis here is that these two variables are related - the effect of one depends on the other. e.g. Distance to nearest development depends in part on access to transportation. Notice that the effect of both variables is significant in this specification, but both are not significant in `Model5`.
+
+Which model is best? The one that performs the most usefully in our forecasting use case! As it turns out, although county is not significant in our models, it proves useful when we examine our outcomes.
 
 ```{r, warning = FALSE, message = FALSE}
 Model1 <- glm(development_change ~ wetlands + forest  + farm + 
@@ -1122,7 +1121,7 @@ Model5 <- glm(development_change ~ wetlands + forest  + farm +
               family="binomial"(link="logit"), data = datTrain) 
 
 Model6 <- glm(development_change ~ wetlands + forest  + farm + 
-                otherUndeveloped + lagDevelopment  * distance_highways + NAME, 
+                otherUndeveloped + pop + lagDevelopment * distance_highways + NAME, 
               family="binomial"(link="logit"), data = datTrain) 
 ```
 
@@ -1146,14 +1145,21 @@ data.frame(
   theme_minimal()
 
 ```
+## 12.3. Validating our Model Using the Test Set
 
-Next, a data frame is created that includes columns for the observed development change, `lc_change`, and one that includes predicted probabilities for `Model6`. This data frame is then used as an input to a density plot visualizing the distribution of predicted probabilities by observed class. Only a small number of predicted probabilities are greater than or equal to 50% `(nrow(filter(testSetProbs, probs >= .50)) / nrow(datTest))`. This makes good sense, given how rare of an event development is in our dataset. Ultimately, in order to judge our model with a confusion matrix, a smaller development classification threshold must be employed.
+We create a new data frame `testSetProbs` that consists of our `class` (e.g. development_change as a 1 or 0), and `probs` - which is the prediction for each observation in our test set using `Model6`. The `type` parameter is set to `response`, which means our `probs` are measures of estimated probability from 0-1.
 
 ```{r, warning = FALSE, message = FALSE}
 testSetProbs <- 
   data.frame(class = datTest$development_change,
              probs = predict(Model6, datTest, type="response")) 
-  
+```
+
+This density plot is a key tool to figure out where we will set our threshold for classifying predicted probabilities as 1's or 0's (eg Predicted to Develop or Predicted Not To Develop).
+
+Take a close look at this plot and see if you have some ideas about what threshold would separate out our 1's from our 0's most effectively with a minimum of error.
+
+```{r}  
 ggplot(testSetProbs, aes(probs)) +
   geom_density(aes(fill=class), alpha=0.5) +
   scale_fill_manual(values = palette2,
@@ -1162,7 +1168,25 @@ ggplot(testSetProbs, aes(probs)) +
        x="Predicted Probabilities",y="Density") +
   theme_minimal()
 ```
-Confusion matrix
+
+
+### 12.3.1. Confusion matrix
+
+Let's say that 0.05 is a good cutoff value - above that value, we predict that cell is a `1`, and below it, a `0`.
+
+Let's build a confusion matrix to see how accurate this model is overall, and what our error rates are.
+
+It helps to write out in plain language what our four outcomes are:
+
+- True Positive: We predicted a cell would convert from undeveloped to developed and it *did* convert.
+
+- False Positive: We predicted a cell would convert from undeveloped to developed and it *did not* convert.
+
+- True Negative: We predicted a cell would *not* convert from undeveloped to developed and it *did not* convert.
+
+- False Negative: We predicted a cell would *not* convert from undeveloped to developed and it *did* convert.
+
+If you want to adjust model performance, or use a different model, you can change the model type in the previous step and/or change the threshold in this step (see the first line of code) and compare the performance.
 
 ```{r}
 testSetProbs$predClass  = ifelse(testSetProbs$probs > .05 ,1,0)
@@ -1172,7 +1196,12 @@ caret::confusionMatrix(reference = as.factor(testSetProbs$class),
                        positive = "1")
 
 ```
-Change thresholds?
+
+### 12.3.2. ROC Curve
+
+One more indicator of model performance - the ROC curve. Do we have a "healthy" looking curve? Above the y=x line, not a "hard elbow" shape, and relatively convex?
+
+In this case, we certainly do.
 
 ```{r roc_curve, message = FALSE, warning = FALSE}
 
@@ -1183,7 +1212,9 @@ ggplot(testSetProbs, aes(d = as.numeric(class), m = probs)) +
   theme_minimal()
 ```
 
-### Predicting for the whole set, analyzing error
+## 12.4. Analyzing Error
+
+STOPPED HERE
 
 Use our whole data set, and make predictions at a few threshold options, map the outcomes, summarize by county.
 
@@ -1344,7 +1375,11 @@ ggplot(data=ConfusionMatrix.metrics) +
 ```
 </div>
 
-Make 2027 forecast, chose your appropriate threshold - here I choose 0.17
+# Forecast for t3
+
+OK, we are ready
+
+chose your appropriate threshold - here I choose 0.17
 
 ```{r}
 dat_2027_preds <- dat_2019 %>%
@@ -1366,11 +1401,15 @@ ggplot(data=dat_2027_preds) +
   theme_void()
 ```
 
-Assess impacts - how much land converts? sensitive land is lost per county? what are the expected population projections per county? what is your planning prescription given the conversion forecast?
+# Assess impacts and allocation strategies
+
+how much land converts? sensitive land is lost per county? what are the expected population projections per county? what is your planning prescription given the conversion forecast?
 
 can you multiply by the cell resolution to convert to area - res(lc_2019_rs)[1]
 
 Total conversion in metro
+
+NEED TO MAKE A MAP HERE - maybe in mapview??
 
 ```{r}
 dat_2027_preds %>%
