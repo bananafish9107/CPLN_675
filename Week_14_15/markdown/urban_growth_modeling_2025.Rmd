@@ -91,7 +91,7 @@ Build identical variables for *t1* and *t2* - you will need the *t2* data to mak
 
 6. **Conduct exploratory analysis** to see what independent variables might be correlated with `development_change` and to examine the data set for spatial patterns that might provide clues about feature engineering.
 
-7. Split your data into training and testing sets and **train a model** using *t1* data that can predict `development_change`.
+7. Split your data into training and testing sets and **train a binomial logistic regression model** using *t1* data that can predict `development_change`.
 
 8. **Validate your model** by examining errors in your test set using a confusion matrix, ROC curve, plots and maps.
 
@@ -105,7 +105,7 @@ Build identical variables for *t1* and *t2* - you will need the *t2* data to mak
 
 This document functions as a template for a class assignment in CPLN 6750 - different student teams might choose to build spatial features with ArcGIS. The workflow would function in the same way as described in the previous section - loading in two time periods of land cover data, reclassifying it, identifying change, and then summarizing to a fishnet. You can calculate distance to highways, spatial lag to nearest developed cell, and other spatial variables in ArcGIS.
 
-However, you will need to bring your data from *t1* and *t2* into R in fishnet form in order to run your logistic regression models.
+However, you will need to bring your data from *t1* and *t2* into R in fishnet form in order to run your logistic regression models. In this case, bring your data into R in step 10 "Creating Our Data Set for Modeling".
 
 # 1.4. Setup - Loading Libraries and Functions
 
@@ -188,7 +188,7 @@ We will also load several functions that are custom built for use in this workfl
 
 `aggregateRaster`loops through a list of rasters, converts the each raster to points, filters only points that have value of `1` (ie. is the _ith_ land cover type), and then aggregates to the fishnet.
 
-Here is the function.
+The following code block loads these functions:
 
 ```{r, warning = FALSE, message = FALSE}
 #this function converts a column in to quintiles. It is used for mapping.
@@ -258,6 +258,16 @@ aggregateRaster <- function(inputRasterList, theFishnet) {
    return(theseFishnets)
   }
 ```
+
+## 1.5. A Note About Census Data
+
+As of this writing, in April of 2025, there has been recent inconsistent service with the US Census API's tigerline geometries. This has affected the `tidycensus` and `tigris` packages. If you experience issues using tidycensus or tigris, refer to the "issues" section of the respective packages github pages to see if your error is being discussed and troublehot.
+
+If you get the following error, this means the API is down:
+
+`The source could be corrupt or not supported. See `st_drivers()` for a list of supported formats.`
+
+The way to solve this is to uninstall tidycensus and tigris, and install a "patched" version of `tigris` direct from developer Kyle Walker's github repo using the `devtools` package. Then you reinstall tigris first, and tidycensus second. The patched version of tigris will get the data from the Census FTP server instead of the API. [There is a quick code vignette I've created to walk you through this](https://github.com/mafichman/CPLN_675/blob/main/misc/tigris_patch.R).
 
 # 2. Loading LC and MSA data
 
@@ -720,7 +730,8 @@ ggplot() +
   labs(title="Population, Houston MSA: 2019") +
   theme_void(), ncol=2)
 ```
-## 6.3. Aggregate Census Data with Aerially Weighted Interpolation
+
+## 6.2. Aggregate Census Data with Aerially Weighted Interpolation
 
 AWI is a cool spatial analysis tool, you may not have used it before - we can use it to reconcile tract boundaries and fishnet grid cells, and apportion population from the tracts to the cells. Here is how Prof. Steif described AWI -
 
@@ -1040,7 +1051,8 @@ dat_2011 %>%
     labs(title="New Development as a Function of Continuous Variables") +
     theme_minimal() 
 ```
-STOPPED HERE
+
+It's also useful to look at the patterns of change between different land cover types. What proportion of each undeveloped land cover type converted to developed during the t1-t2 interval?
 
 
 ```{r, warning = FALSE, message = FALSE}
@@ -1058,6 +1070,7 @@ dat_2011 %>%
 
 # 12. Modeling
 
+We are going to train and test our models using a workflow based on the one we learned in the ["Introduction to Applied Predictive Modeling" text](https://mafichman.github.io/applied_predictive_modeling/#1_Introduction), where we used Binary Logistic Regression to estimate morbidity in plants.
 
 ## 12.1. Splitting our data
 
@@ -1118,6 +1131,7 @@ Model6 <- glm(development_change ~ wetlands + forest  + farm +
               family="binomial"(link="logit"), data = datTrain) 
 ```
 
+
 Print the summary objects for your models, and choose one to use as your model for the validation and prediction procedure to follow.
 
 
@@ -1138,6 +1152,7 @@ data.frame(
   theme_minimal()
 
 ```
+
 ## 12.3. Validating our Model Using the Test Set
 
 We create a new data frame `testSetProbs` that consists of our `class` (e.g. development_change as a 1 or 0), and `probs` - which is the prediction for each observation in our test set using `Model6`. The `type` parameter is set to `response`, which means our `probs` are measures of estimated probability from 0-1.
@@ -1325,7 +1340,7 @@ ggplot(data=dat_2027_preds) +
 
 Once we have a forecast, it's the planner's job to think about how to react to the likely impacts of this anticipated demand with a strategy for allocating development through the use of planning - incentives, regulations etc.,
 
-ADD A MAP HERE FOR MORE QUALITATIVE ANALYSIS - MAYBE MAPVIEW??
+There is a lot of exploratory analysis you might want to do with your model outputs. For example, you could use the `mapview` package to make a quick interactive map and explore communities in your study area in more detail. You can spatially cross-reference your prediction with data found in supplementary data sets, like parks, parcels and other land use data.
 
 ## 14.1. Impact Assessment
 
