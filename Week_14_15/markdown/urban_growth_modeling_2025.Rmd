@@ -1,7 +1,7 @@
 ---
 title: "CPLN 6750 - Urban Growth Modeling, 2025"
 author: "Michael Fichman, Ken Steif & Jenna Epstein"
-date: "3/26/2025"
+date: "5/2/2025"
 output:
   html_document:
     toc: true
@@ -1351,7 +1351,9 @@ Overall land forecasted land conversion can be converted from cells to raw area 
 ```{r}
 dat_2027_preds %>%
   as.data.frame() %>%
-  summarize(total_cells = sum(as.numeric(Prediction))) %>%
+  filter(Prediction == 1) %>%
+  tally() %>%
+  rename(total_cells = n) %>%
   mutate(total_area_m = total_cells * res(lc_2019_rs)[1],
          total_km2 = total_area_m/1000000,
          total_mi2 = total_km2*0.386102) %>%
@@ -1365,8 +1367,10 @@ County-by-county forecast:
 ```{r}
 dat_2027_preds %>%
   as.data.frame() %>%
+  filter(Prediction == 1) %>%
   group_by(NAME) %>%
-  summarize(total_cells = sum(as.numeric(Prediction))) %>%
+  tally() %>%
+  rename(total_cells = n) %>%
   mutate(total_area_m = total_cells * res(lc_2019_rs)[1],
          total_km2 = total_area_m/1000000,
          total_mi2 = total_km2*0.386102) %>%
