@@ -1,7 +1,7 @@
 ---
 title: "CPLN 6750: Landscape Fragmentation / Land Use Efficiency Calculations in R"
 author: "Instructor: Michael Fichman, University of Pennsylvania"
-date: "January, 2024"
+date: "January, 2026"
 output: 
   html_document:
     toc: true
@@ -295,31 +295,13 @@ ggplot() +
 
 Let's make something a bit nicer.
 
-First a color palette of hexidecimal color codes which we can feed to our symbology options.
+Here is a color palette of hexidecimal color codes which we can feed to our symbology options.
 
 ```{r color_ramp, echo=TRUE}
 ramp8 <- c("#050234","#2C0078","#7F00BF","#F600FF","#FF0DBE","#FF569F","#FF9BA8","#FFE8E4")
 ```
 
-Then we can set up a set of styles for our maps in ggplot/sf. We can call these any time we want to style a map. You can create your own themes depending on your preferences.
-
-```{r mapTheme, echo=TRUE}
-mapTheme <- theme(
-    text = element_text( color = "black"),
-    plot.title = element_text(size = 14,colour = "black"),
-    plot.subtitle=element_text(face="italic"),
-    plot.caption=element_text(hjust=0),
-    axis.ticks = element_blank(),
-    panel.background = element_blank(),axis.title = element_blank(),
-    axis.text = element_blank(),
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.border = element_rect(colour = "black", fill=NA, size=2)
-  ) 
-```
-
-OK - so let's try that first map again, but we can add a customized color ramp using `scale_fill_gradientn` and some labels and titles.
+OK - so let's try that first map again, but we can add a customized color ramp using `scale_fill_gradientn`, as well as some labels and titles. Let's also apply a more pleasing visual theme to our ggplot using `theme_void` - one of many ggplot theme options.
 
 ```{r patches_by_town_2, echo=TRUE}
 ggplot() + 
@@ -327,7 +309,7 @@ ggplot() +
   coord_sf() +
   scale_fill_gradientn(colors=ramp8, name = "Percent") +
   labs(title="Pct Change in the number of undeveloped patches by town\nChester County (2001-2011)") +
-  mapTheme
+  theme_void()
 ``` 
 
 # 9 Group Workshop Prompts
@@ -388,7 +370,7 @@ ggplot() +
   scale_fill_gradientn(colors=ramp8, name = "n Patches") +
   facet_wrap(~year)+
   labs(title="Number of Undeveloped Land Fragments, Chester County, PA (2001-2011)") +
-  mapTheme
+  theme_void()
 ```
 
 ## 9.3. Map Challenge 3
